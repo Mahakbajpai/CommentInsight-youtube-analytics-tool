@@ -1,108 +1,114 @@
-# YouTube Comments Sentiment Analysis
-
+# 1. Imports
 import pandas as pd
-import numpy as np
-import requests
+from googleapiclient.discovery import build
+import re
+from textblob import TextBlob # Or from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import matplotlib.pyplot as plt
-from textblob import TextBlob
+import seaborn as sns
 
-# --------------------------
-# CONFIG
-# --------------------------
-API_KEY = "AIzaSyCqXA4gBKHLPJwLpUSyRv6zbQ8dNFgLueQ"   # replace with your YouTube Data API key
-VIDEO_ID = "K7x8W06VjZY" # replace with YouTube video ID
-MAX_COMMENTS = 200
+# 2. YouTube API Setup
+# Replace "YOUR_YOUTUBE_API_KEY" with your actual API key
+API_KEY = "AIzaSyCqXA4gBKHLPJwLpUSyRv6zbQ8dNFgLueQ"
+YOUTUBE_API_SERVICE_NAME = "youtube"
+YOUTUBE_API_VERSION = "v3"
 
-# --------------------------
-# Function to fetch comments using API
-# --------------------------
-def get_youtube_comments(api_key, video_id, max_results=200):
+youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=API_KEY)
+
+# Function to extract video ID from URL
+def extract_video_id(youtube_url):
+    """
+    Extracts the video ID from any standard YouTube URL format.
+    """
+    # This pattern finds the 11-character video ID by first matching 'v=' or a '/'
+    # and then capturing the characters that follow.
+    match = re.search(r"(?:v=|/)([a-zA-Z0-9_-]{11})", youtube_url)
+    if match:
+        return match.group(1)
+    return None
+
+# 3. Function to get comments from a video
+def get_youtube_comments(video_id):
     comments = []
-    url = "https://www.googleapis.com/youtube/v3/commentThreads"
-    params = {
-        "part": "snippet",
-        "videoId": video_id,
-        "key": api_key,
-        "maxResults": 100,
-        "textFormat": "plainText"
-    }
+    next_page_token = None
 
-    while len(comments) < max_results:
-        response = requests.get(url, params=params)
-        if response.status_code != 200:
-            print("❌ API Error:", response.json())
-            break
+    while True:
+        try:
+            request = youtube.commentThreads().list(
+                part="snippet",
+                videoId=video_id,
+                maxResults=100, # Max results per page
+                pageToken=next_page_token,
+                textFormat="plainText"
+            )
+            response = request.execute()
 
-        data = response.json()
-        for item in data["items"]:
-            comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-            comments.append(comment)
-            if len(comments) >= max_results:
+            for item in response['items']:
+                comment = item['snippet']['topLevelComment']['snippet']['textDisplay']
+                comments.append(comment)
+
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token:
                 break
-
-        # pagination
-        if "nextPageToken" in data:
-            params["pageToken"] = data["nextPageToken"]
-        else:
+        except Exception as e:
+            print(f"An API error occurred: {e}")
             break
-
     return comments
 
-# --------------------------
-# Load Data
-# --------------------------
-try:
-    comments = get_youtube_comments(API_KEY, VIDEO_ID, MAX_COMMENTS)
-    df = pd.DataFrame(comments, columns=["comment"])
-    print(f"✅ Downloaded {len(df)} comments")
-except:
-    print("⚠️ Using sample fallback data...")
-    sample_comments = [
-        "I love this video!", "This is terrible...", "Amazing content, thanks!",
-        "Not what I expected.", "So helpful, I learned a lot!", "Waste of time."
-    ]
-    df = pd.DataFrame(sample_comments, columns=["comment"])
+# 4. Text Pre-processing
+def preprocess_text(text):
+    text = text.lower() # Convert to lowercase
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE) # Remove URLs
+    text = re.sub(r'@\S+', '', text) # Remove mentions
+    text = re.sub(r'#\S+', '', text) # Remove hashtags
+    text = re.sub(r'[^\w\s]', '', text) # Remove punctuation
+    text = re.sub(r'\d+', '', text) # Remove numbers
+    return text
 
-# --------------------------
-# Cleaning
-# --------------------------
-df["comment"] = df["comment"].str.lower()
+# 5. Sentiment Analysis Function
+def analyze_sentiment(comment):
+    # Using TextBlob
+    analysis = TextBlob(comment)
+    if analysis.sentiment.polarity > 0:
+        return 'Positive'
+    elif analysis.sentiment.polarity < 0:
+        return 'Negative'
+    else:
+        return 'Neutral'
 
-# --------------------------
-# Sentiment Analysis
-# --------------------------
-df["polarity"] = df["comment"].apply(lambda x: TextBlob(x).sentiment.polarity)
-df["sentiment"] = df["polarity"].apply(
-    lambda x: "positive" if x > 0 else ("negative" if x < 0 else "neutral")
-)
+# Main execution flow
+if __name__ == "__main__":
+    youtube_video_url = input("Enter YouTube video URL: ")
+    video_id = extract_video_id(youtube_video_url)
 
-# --------------------------
-# EDA & Plots
-# --------------------------
-print(df.head())
+    if video_id:
+        print(f"Fetching comments for video ID: {video_id}...")
+        comments = get_youtube_comments(video_id)
+        if comments:
+            print(f"Fetched {len(comments)} comments.")
 
-# Sentiment distribution
-sentiment_counts = df["sentiment"].value_counts()
+            # Create a DataFrame
+            df = pd.DataFrame({'comment': comments})
 
-plt.figure(figsize=(6,4))
-sentiment_counts.plot(kind="bar")
-plt.title("Sentiment Distribution")
-plt.xlabel("Sentiment")
-plt.ylabel("Count")
-plt.show()
+            # Preprocess comments
+            df['cleaned_comment'] = df['comment'].apply(preprocess_text)
 
-# Polarity histogram
-plt.figure(figsize=(6,4))
-df["polarity"].plot(kind="hist", bins=20, edgecolor="black")
-plt.title("Polarity Distribution")
-plt.show()
+            # Analyze sentiment
+            df['sentiment'] = df['cleaned_comment'].apply(analyze_sentiment)
 
-# --------------------------
-# Insights
-# --------------------------
-print("\n📌 Insights:")
-print(f"1. Total comments analyzed: {len(df)}")
-print(f"2. Positive comments: {sum(df['sentiment']=='positive')}")
-print(f"3. Negative comments: {sum(df['sentiment']=='negative')}")
-print(f"4. Neutral comments: {sum(df['sentiment']=='neutral')}")
-print(f"5. Average polarity: {df['polarity'].mean():.2f}")
+            # Display sentiment distribution
+            sentiment_counts = df['sentiment'].value_counts()
+            print("\nSentiment Analysis Results:")
+            print(sentiment_counts)
+
+            # Visualize the results
+            plt.figure(figsize=(8, 6))
+            sns.barplot(x=sentiment_counts.index, y=sentiment_counts.values, palette='viridis')
+            plt.title('Distribution of YouTube Comment Sentiments')
+            plt.xlabel('Sentiment')
+            plt.ylabel('Number of Comments')
+            plt.show()
+
+        else:
+            print("No comments found or an error occurred.")
+    else:
+        print("Invalid YouTube URL provided.")
