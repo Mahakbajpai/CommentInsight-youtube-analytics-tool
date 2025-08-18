@@ -2,13 +2,15 @@
 import pandas as pd
 from googleapiclient.discovery import build
 import re
-from textblob import TextBlob # Or from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from textblob import TextBlob
 import matplotlib.pyplot as plt
 import seaborn as sns
+from wordcloud import WordCloud
+import os
 
 # 2. YouTube API Setup
 # Replace "YOUR_YOUTUBE_API_KEY" with your actual API key
-API_KEY = "AIzaSyCqXA4gBKHLPJwLpUSyRv6zbQ8dNFgLueQ"
+API_KEY = "YOUR_YOUTUBE_API_KEY"
 YOUTUBE_API_SERVICE_NAME = "youtube"
 YOUTUBE_API_VERSION = "v3"
 
@@ -19,61 +21,62 @@ def extract_video_id(youtube_url):
     """
     Extracts the video ID from any standard YouTube URL format.
     """
-    # This pattern finds the 11-character video ID by first matching 'v=' or a '/'
-    # and then capturing the characters that follow.
     match = re.search(r"(?:v=|/)([a-zA-Z0-9_-]{11})", youtube_url)
     if match:
         return match.group(1)
     return None
 
-# 3. Function to get comments from a video
+# Function to get comments from a video
 def get_youtube_comments(video_id):
     comments = []
     next_page_token = None
-
+    
+    # Get comment threads (top-level comments)
     while True:
         try:
             request = youtube.commentThreads().list(
                 part="snippet",
                 videoId=video_id,
-                maxResults=100, # Max results per page
+                maxResults=100,
                 pageToken=next_page_token,
                 textFormat="plainText"
             )
             response = request.execute()
-
+            
             for item in response['items']:
                 comment = item['snippet']['topLevelComment']['snippet']['textDisplay']
                 comments.append(comment)
-
+            
             next_page_token = response.get('nextPageToken')
             if not next_page_token:
                 break
         except Exception as e:
             print(f"An API error occurred: {e}")
             break
+            
     return comments
 
-# 4. Text Pre-processing
+# 3. Text Pre-processing
 def preprocess_text(text):
-    text = text.lower() # Convert to lowercase
-    text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE) # Remove URLs
-    text = re.sub(r'@\S+', '', text) # Remove mentions
-    text = re.sub(r'#\S+', '', text) # Remove hashtags
-    text = re.sub(r'[^\w\s]', '', text) # Remove punctuation
-    text = re.sub(r'\d+', '', text) # Remove numbers
+    text = text.lower()
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'@\S+', '', text)
+    text = re.sub(r'#\S+', '', text)
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'\d+', '', text)
     return text
 
-# 5. Sentiment Analysis Function
+# 4. Sentiment Analysis Function
 def analyze_sentiment(comment):
-    # Using TextBlob
     analysis = TextBlob(comment)
-    if analysis.sentiment.polarity > 0:
-        return 'Positive'
-    elif analysis.sentiment.polarity < 0:
-        return 'Negative'
+    polarity = analysis.sentiment.polarity
+    if polarity > 0:
+        sentiment = 'Positive'
+    elif polarity < 0:
+        sentiment = 'Negative'
     else:
-        return 'Neutral'
+        sentiment = 'Neutral'
+    return sentiment, polarity
 
 # Main execution flow
 if __name__ == "__main__":
@@ -93,19 +96,47 @@ if __name__ == "__main__":
             df['cleaned_comment'] = df['comment'].apply(preprocess_text)
 
             # Analyze sentiment
-            df['sentiment'] = df['cleaned_comment'].apply(analyze_sentiment)
+            df[['sentiment', 'polarity']] = df['cleaned_comment'].apply(lambda x: pd.Series(analyze_sentiment(x)))
 
             # Display sentiment distribution
             sentiment_counts = df['sentiment'].value_counts()
             print("\nSentiment Analysis Results:")
             print(sentiment_counts)
-
-            # Visualize the results
+            
+            # --- Visualizations ---
+            
+            # 1. Bar Plot of Sentiment Counts
             plt.figure(figsize=(8, 6))
             sns.barplot(x=sentiment_counts.index, y=sentiment_counts.values, palette='viridis')
             plt.title('Distribution of YouTube Comment Sentiments')
             plt.xlabel('Sentiment')
             plt.ylabel('Number of Comments')
+            plt.show()
+
+            # 2. Pie Chart of Sentiment Proportions
+            plt.figure(figsize=(8, 8))
+            plt.pie(sentiment_counts, labels=sentiment_counts.index, autopct='%1.1f%%', startangle=140, colors=sns.color_palette('viridis', len(sentiment_counts)))
+            plt.title('Sentiment Proportions in YouTube Comments')
+            plt.show()
+
+            # 3. Word Cloud
+            all_comments_text = ' '.join(df['cleaned_comment'])
+            if all_comments_text:
+                wordcloud = WordCloud(width=800, height=400, background_color='white').generate(all_comments_text)
+                plt.figure(figsize=(10, 7))
+                plt.imshow(wordcloud, interpolation='bilinear')
+                plt.axis('off')
+                plt.title('Most Frequent Words in Comments')
+                plt.show()
+            
+            # 4. Histogram of Sentiment Scores
+            plt.figure(figsize=(10, 6))
+            sns.histplot(df['polarity'], bins=20, kde=True, color='skyblue')
+            plt.title('Distribution of Sentiment Polarity Scores')
+            plt.xlabel('Polarity Score (-1 to +1)')
+            plt.ylabel('Number of Comments')
+            plt.axvline(x=0, color='red', linestyle='--', label='Neutrality line')
+            plt.legend()
             plt.show()
 
         else:
