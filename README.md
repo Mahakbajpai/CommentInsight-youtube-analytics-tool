@@ -22,3 +22,4 @@ It helps in understanding **audience engagement, sentiment, and insights** from 
    ```bash
    git clone https://github.com/your-username/your-repo-name.git
    cd your-repo-name
+2. In the code, get your own YouTube API key from Google Cloud Console and paste it in the code where your API key is being asked. 
