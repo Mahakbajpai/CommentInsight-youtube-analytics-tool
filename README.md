@@ -1,25 +1,81 @@
-#  YouTube Comments Analysis  
+#  YouTube Comments Sentiment Analyzer
 
-##  Overview  
-This project analyzes YouTube video comments using **Python**.  
-It helps in understanding **audience engagement, sentiment, and insights** from user comments.  
+A Python-based application that analyzes YouTube comments to determine public sentiment using Natural Language Processing (NLP).  
+This project helps in understanding audience opinion, engagement trends, and overall sentiment for any YouTube video.
 
-##  Features  
-- Extracts comments from YouTube videos using the video URL  
+---
+
+##  Project Overview
+
+The YouTube Comments Sentiment Analyzer fetches comments from YouTube videos and classifies them into positive, negative, or neutral sentiments. It provides meaningful insights that can help creators, marketers, and analysts understand audience behavior.
+
+---
+
+##  Features
+
+- Fetches comments using YouTube Data API  
 - Cleans and preprocesses text data  
-- Performs **sentiment analysis** (Positive / Negative / Neutral)  
-- Visualizes results with simple outputs  
+- Performs sentiment analysis  
+- Displays sentiment results clearly  
+- Supports large sets of comments  
 
-##  Tech Stack  
+---
+
+##  Tech Stack
+
 - Python  
-- Google API Client (YouTube Data API)  
-- TextBlob (for sentiment analysis)  
-- Matplotlib / Pandas  
+- YouTube Data API  
+- Natural Language Processing (NLP)  
+- TextBlob / NLTK  
+- Pandas  
 
-##  How to Run  
+---
 
-1. Clone this repo or download files  
-   ```bash
-   git clone https://github.com/your-username/your-repo-name.git
-   cd your-repo-name
-2. In the code, get your own YouTube API key from Google Cloud Console and paste it in the code where your API key is being asked. 
+##  Project Structure
+
+youtube-comments-analyzer/
+│
+├── main.py
+├── requirements.txt
+├── config.py
+├── data/
+├── README.md
+
+
+---
+
+##  Use Cases
+
+- Analyze audience reaction to videos  
+- Monitor brand or product feedback  
+- Content performance evaluation  
+- Social media analytics  
+
+---
+
+##  Author
+
+**Mahak Bajpai**  
+B.Tech | Computer Science  
+Aspiring Data Analyst & Software Developer  
+
+---
+
+##  Future Enhancements
+
+- Real-time comment analysis  
+- Emotion classification (happy, angry, neutral)  
+- Visualization dashboards  
+- Multilingual sentiment analysis  
+
+---
+
+##  Why This Project Stands Out
+
+- Practical use of NLP  
+- Real-world data (YouTube comments)  
+- Clean, modular Python code  
+- Recruiter-friendly and industry relevant  
+
+
+
